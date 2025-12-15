@@ -50,29 +50,57 @@ function recover(model::MyClassicalHopfieldNetworkModel, sₒ::Array{Int32,1}, t
     energydictionary = Dict{Int64, Float32}(); # initialize the dictionary to hold energies
     has_converged = false; # flag for convergence
 
+    frames[0] = copy(sₒ); # copy the initial state 
+    energydictionary[0] = _energy(sₒ, W, b); # imput initial energy
+    s = copy(sₒ); # define first state (initial)
+    iteration_counter = 1; # set iteration counter
 
+    while has_converged == false # while not converged
+        i = rand(1:number_of_pixels); # select a random pixel
+        s[i] = dot(W[i, :], s) - b[i] ≥ 0 ? Int32(1) : Int32(-1) # compute the state 
+        
+        state_snapshot = copy(s); # copy current state
+        frames[iteration_counter] = state_snapshot; # input current state into frames 
+        push!(S, state_snapshot); # push current state into buffer 
 
+        energydictionary[iteration_counter] = _energy(s, W, b); # calculate current energy 
 
+        if (length(S) == patience_val) && (iteration_counter ≥ min_iterations) # if the amount of past states in the buffer equals patience and minimum iterations have been reached
+            all_equal = true; # initialize variable
+            first_state = S[1]; # collect the first state in the buffer
+            for state in S # for all states in s
+                if (hamming(first_state, state) != 0) # if any state has a difference from the first state that is not zero 
+                    all_equal = false; # then they are not all equal
+                    break; # exit the for loop early
+                end
+            end
+            if all_equal == true # if they are all equal
+                has_converged = true; # then it has converged, end loop
+            end
+        end
 
+        if energydictionary[iteration_counter] ≤ trueenergyvalue # if the current energy is less than or equal to the true energy value
+            has_converged = true; # then it has converged, end loop
+            @info "true energy minimum has been reached" # notify that the true energy minimum was reached
+        end
 
-
+        iteration_counter += 1 # increment iteration counter
+        if iteration_counter > maxiterations # if the iteration counter is greater than the maximum number of iterations 
+            has_converged = true; # then end loop
+            @warn "maxmimum number of iterations has been reached with no convergence" # notify that the maximum number of iterations was reached 
+        end
+    end
 
     frames, energydictionary
 end
 
 function decode(simulationstate::Array{T,1};
-    number_of_rows::Int64 = 28, number_of_cols::Int64 = 28)::Array{T,2} where T <: Number
-    # could do with one line in julia using reshape, julia does it by column so would have to do transpose
-    # reshape and searching for -1 and turning to 0
-    reconstructed_image = Array{Int32,2}(undef, number_of_rows, number_of_cols);
-    linearindex = 1;
+    number_of_rows::Int64 = 28, number_of_cols::Int64 = 28)::Array{T,2} where T <: Number    
 
-    for row in 1:number_of_rows
-        for col in 1:number_of_cols
-
-        end
-    end
+    binary = Int32.(simulationstate .!= -1) # convert -1 to 0 and 1 to 1
+    reconstructed_image = reshape(binary, number_of_cols, number_of_rows)' # reshape the transposed matrix back into the image
     
-
     return reconstructed_image
 end
+
+# chatGPT was used for troubleshooting and major bug fixes throughout this code
